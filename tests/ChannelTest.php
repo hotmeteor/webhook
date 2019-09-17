@@ -9,7 +9,6 @@ use Orchestra\Testbench\TestCase;
 use Illuminate\Notifications\Notification;
 use NotificationChannels\Webhook\WebhookChannel;
 use NotificationChannels\Webhook\WebhookMessage;
-use NotificationChannels\Webhook\Exceptions\CouldNotSendNotification;
 
 class ChannelTest extends TestCase
 {
@@ -23,7 +22,6 @@ class ChannelTest extends TestCase
             ->with(
                 'https://notifiable-webhook-url.com',
                 [
-                    'query' => null,
                     'body' => '{"payload":{"webhook":"data"}}',
                     'verify' => false,
                     'headers' => [
@@ -47,7 +45,6 @@ class ChannelTest extends TestCase
             ->with(
                 'https://notifiable-webhook-url.com',
                 [
-                    'query' => null,
                     'body' => '{"payload":{"webhook":"data"}}',
                     'verify' => false,
                     'headers' => [
@@ -61,20 +58,19 @@ class ChannelTest extends TestCase
         $channel->send(new TestNotifiable(), new TestNotification());
     }
 
-    /** @test */
-    public function it_can_send_a_notification_with_query_string()
+    /**
+     * @test
+     */
+    public function it_throws_an_exception_when_it_could_not_send_the_notification()
     {
-        $response = new Response();
+        $response = new Response(500);
         $client = Mockery::mock(Client::class);
         $client->shouldReceive('post')
             ->once()
             ->with(
                 'https://notifiable-webhook-url.com',
                 [
-                    'query' => [
-                        'webhook' => 'data',
-                    ],
-                    'body' => '""',
+                    'body' => '{"payload":{"webhook":"data"}}',
                     'verify' => false,
                     'headers' => [
                         'User-Agent' => 'WebhookAgent',
@@ -82,27 +78,6 @@ class ChannelTest extends TestCase
                     ],
                 ]
             )
-            ->andReturn($response);
-
-        $channel = new WebhookChannel($client);
-        $channel->send(new TestNotifiable(), new QueryTestNotification());
-    }
-
-    /**
-     * @expectedException NotificationChannels\Webhook\Exceptions\CouldNotSendNotification
-     * @test
-     */
-    public function it_throws_an_exception_when_it_could_not_send_the_notification()
-    {
-        $response = new Response(500);
-
-        $this->expectExceptionObject(
-            new CouldNotSendNotification($response, 'Webhook responded with an error: ``', 500)
-        );
-
-        $client = Mockery::mock(Client::class);
-        $client->shouldReceive('post')
-            ->once()
             ->andReturn($response);
         $channel = new WebhookChannel($client);
         $channel->send(new TestNotifiable(), new TestNotification());
@@ -134,18 +109,6 @@ class TestNotification extends Notification
                     ],
                 ]
             ))->userAgent('WebhookAgent')
-                ->header('X-Custom', 'CustomHeader');
-    }
-}
-
-class QueryTestNotification extends Notification
-{
-    public function toWebhook($notifiable)
-    {
-        return
-            (new WebhookMessage())
-                ->query(['webhook' => 'data'])
-                ->userAgent('WebhookAgent')
                 ->header('X-Custom', 'CustomHeader');
     }
 }
